@@ -1,14 +1,14 @@
 # TaskFlow
 
-TaskFlow is a production-ready MERN stack task management application with JWT authentication, protected task CRUD APIs, and a modern dark React dashboard.
+TaskFlow is a MERN stack task management app with JWT authentication, protected task CRUD APIs, a dark React dashboard, and Docker-based deployment support.
 
 ## Tech Stack
 
 - Frontend: React 19, Vite, Tailwind CSS, React Router DOM, Axios, Context API
 - Backend: Node.js, Express, MongoDB, Mongoose, JWT, bcrypt, dotenv, cors
-- DevOps practice: Docker, Jenkins, and deployment files should be written by you
+- DevOps: Docker, Docker Compose, Nginx reverse proxy
 
-## Folder Structure
+## Project Structure
 
 ```text
 taskflow/
@@ -23,32 +23,55 @@ taskflow/
       routes/authRoutes.js
       routes/taskRoutes.js
       server.js
+    .dockerignore
     .env.example
+    Dockerfile
     package-lock.json
     package.json
   frontend/
     src/
+      components/Loader.jsx
       components/Navbar.jsx
       components/TaskCard.jsx
-      components/Loader.jsx
-      pages/Login.jsx
-      pages/Signup.jsx
-      pages/Dashboard.jsx
-      pages/Profile.jsx
       context/AuthContext.js
       context/AuthProvider.jsx
+      pages/Dashboard.jsx
+      pages/Login.jsx
+      pages/Profile.jsx
+      pages/Signup.jsx
       services/api.js
       App.jsx
+      index.css
       main.jsx
-    .env.example
+    .dockerignore
+    Dockerfile
+    index.html
+    nginx.conf
     package-lock.json
     package.json
+    postcss.config.js
+    tailwind.config.js
+    vite.config.js
+  docker-compose.yml
   README.md
 ```
 
+## Features
+
+- User signup and login
+- Password hashing with bcrypt
+- JWT authentication with `Authorization: Bearer <token>`
+- Protected profile endpoint
+- Create, read, update, delete, complete, search, and filter tasks
+- Dark responsive Tailwind UI
+- Frontend Nginx container proxies `/api` requests to the backend container
+- MongoDB container with persistent Docker volume
+
 ## Environment Variables
 
-Backend: copy `backend/.env.example` to `backend/.env`.
+Create `backend/.env` from `backend/.env.example`.
+
+For local backend development:
 
 ```env
 NODE_ENV=development
@@ -59,23 +82,34 @@ JWT_EXPIRES_IN=7d
 CLIENT_URL=http://localhost:5173
 ```
 
-Frontend: copy `frontend/.env.example` to `frontend/.env`.
+For Docker Compose, use the MongoDB service name:
 
 ```env
-VITE_API_URL=http://localhost:5000/api
+NODE_ENV=production
+PORT=5000
+MONGO_URI=mongodb://mongo:27017/taskflow
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRES_IN=7d
+CLIENT_URL=http://localhost
 ```
 
-## Installation
+The frontend API base URL is currently `/api`. In Docker, `frontend/nginx.conf` proxies `/api` to `taskflow-backend:5000`.
+
+## Local Development
+
+Install backend dependencies:
 
 ```bash
 cd backend
 npm install
-
-cd ../frontend
-npm install
 ```
 
-## Running Locally
+Install frontend dependencies:
+
+```bash
+cd frontend
+npm install
+```
 
 Start MongoDB locally, then run the backend:
 
@@ -84,23 +118,51 @@ cd backend
 npm run dev
 ```
 
-Run the frontend in another terminal:
+Run the frontend:
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-The frontend runs on `http://localhost:5173` and the backend API runs on `http://localhost:5000`.
+Backend runs on `http://localhost:5000`.
 
-If PowerShell blocks `npm`, use `npm.cmd` instead:
+Frontend runs on `http://localhost:5173`.
+
+Note: the frontend currently calls `/api`. For separate local frontend/backend development, add a Vite proxy or change the Axios base URL for development.
+
+If PowerShell blocks `npm`, use `npm.cmd`:
 
 ```bash
 npm.cmd install
 npm.cmd run dev
 ```
 
+## NPM Scripts
+
+Backend:
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start backend with Node watch mode |
+| `npm start` | Start backend normally |
+| `npm run lint` | Syntax-check `src/server.js` |
+
+Frontend:
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Create production build |
+| `npm run preview` | Preview production build |
+
 ## API Endpoints
+
+Health:
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | `/api/health` | Check API status |
 
 Authentication:
 
@@ -108,8 +170,8 @@ Authentication:
 | --- | --- | --- |
 | POST | `/api/auth/signup` | Create a user account |
 | POST | `/api/auth/login` | Login and receive a JWT |
-| GET | `/api/auth/me` | Get the logged-in user profile |
-| PUT | `/api/auth/profile` | Update the logged-in user's name |
+| GET | `/api/auth/me` | Get logged-in user profile |
+| PUT | `/api/auth/profile` | Update logged-in user's name |
 
 Tasks:
 
@@ -126,31 +188,61 @@ Protected endpoints require:
 Authorization: Bearer <token>
 ```
 
-## DevOps Practice
+## Docker
 
-This repository intentionally does not document completed Docker or Jenkins commands. As DevOps practice, create these files yourself:
+Build and run the full stack:
 
-- `backend/Dockerfile`
-- `backend/.dockerignore`
-- `frontend/Dockerfile`
-- `frontend/.dockerignore`
-- `docker-compose.yml`
-- `Jenkinsfile`
+```bash
+docker compose up --build
+```
 
-Recommended practice path:
+Run in detached mode:
 
-1. Containerize the backend with Node.js.
-2. Containerize the frontend with a build stage and an Nginx runtime stage.
-3. Add MongoDB with Docker Compose.
-4. Add environment variable handling for local and container runs.
-5. Create a Jenkins pipeline for install, build, and Docker image creation.
-6. Deploy the containers on an AWS EC2 instance.
+```bash
+docker compose up -d --build
+```
 
-## Features
+Stop containers:
 
-- Secure signup and login with hashed passwords
-- JWT storage in `localStorage` and `Authorization: Bearer` API requests
-- Protected dashboard and profile routes
-- Create, edit, delete, complete, search, and filter tasks
-- Dark Tailwind UI with responsive cards, modal forms, loading states, and empty states
-- Centralized backend error responses with proper status codes
+```bash
+docker compose down
+```
+
+Stop containers and remove the MongoDB volume:
+
+```bash
+docker compose down -v
+```
+
+Services:
+
+| Service | Container | Port |
+| --- | --- | --- |
+| MongoDB | `taskflow-mongo` | internal only |
+| Backend | `taskflow-backend` | `5000:5000` |
+| Frontend | `taskflow-frontend` | `80:80` |
+
+After Docker Compose starts, open:
+
+```text
+http://localhost
+```
+
+## Docker Files
+
+- `backend/Dockerfile`: multi-stage backend image using Node 22 Alpine for dependencies and distroless Node.js for runtime
+- `frontend/Dockerfile`: builds the Vite app with Node 22 Alpine and serves it with Nginx
+- `frontend/nginx.conf`: serves the React app and proxies `/api` requests to the backend service
+- `docker-compose.yml`: runs MongoDB, backend, and frontend on one Docker network
+
+## Git Notes
+
+Ignored files include:
+
+- `node_modules`
+- `.env`
+- `dist`
+- `build`
+- `coverage`
+
+Do not commit real secrets. Keep only `.env.example` in Git.
