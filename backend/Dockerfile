@@ -6,13 +6,12 @@ RUN npm ci --omit=dev
 COPY . .
 
 # Production stage
-FROM node:22-alpine
+FROM gcr.io/distroless/nodejs22-debian12
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=builder /app .
-RUN addgroup -S nodejs && adduser -S taskflow -G nodejs
-USER taskflow
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/package.json .
+USER nonroot
 EXPOSE 5000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-CMD wget --spider http://localhost:5000/api/health || exit 1
-CMD ["npm","start"]
+CMD ["src/server.js"]
